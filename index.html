@@ -304,7 +304,7 @@ async function loadMyOrders() {
   const thead = document.getElementById('myHead');
   loading.classList.add('show');
   tbody.innerHTML = '';
-  const { data, error } = await sb.from('orders').select('order_date, items').eq('username', currentUser).order('order_date', { ascending: false }).limit(30);
+  const { data, error } = await sb.from('orders').select('order_date, items').eq('username', currentUser).order('order_date', { ascending: false }).limit(365);
   loading.classList.remove('show');
   if (error || !data || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="99" style="text-align:center;padding:20px;color:#999">暂无记录</td></tr>';
