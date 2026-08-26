@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>鸭货报货群</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="报货群">
+<meta name="theme-color" content="#ff6b35">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#333;padding-bottom:80px}
+.header{background:linear-gradient(135deg,#ff6b35,#ff8f65);color:#fff;padding:16px;text-align:center;position:sticky;top:0;z-index:100}
+.header h1{font-size:20px}
+.header .user-info{font-size:13px;opacity:0.9;margin-top:4px}
+.logout-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:16px;font-size:12px;cursor:pointer}
+.container{max-width:600px;margin:0 auto;padding:12px}
+.date-picker{background:#fff;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.date-picker label{font-weight:600;font-size:14px}
+.date-picker input{border:1px solid #ddd;border-radius:8px;padding:8px 12px;font-size:14px;width:160px}
+.section{border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.section-meat{background:linear-gradient(135deg,#fff5f0,#ffe8dc)}
+.section-veg{background:linear-gradient(135deg,#f0faf0,#dcf5dc)}
+.section h2{font-size:16px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.section-meat h2{color:#d84315}
+.section-veg h2{color:#2e7d32}
+.item-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.item{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:8px;padding:8px 12px}
+.item label{font-size:13px;font-weight:500;white-space:nowrap}
+.item input{width:60px;border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;font-size:14px}
+.submit-btn{width:100%;background:linear-gradient(135deg,#ff6b35,#ff8f65);color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:600;cursor:pointer;margin:16px 0;box-shadow:0 4px 12px rgba(255,107,53,0.3)}
+.submit-btn:active{transform:scale(0.98)}
+.summary-section{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+.summary-section h2{font-size:16px;margin-bottom:12px;color:#333}
+.summary-table{width:100%;border-collapse:collapse;font-size:12px}
+.summary-table th{background:#f8f8f8;padding:8px 4px;text-align:left;border-bottom:2px solid #eee;position:sticky;top:0}
+.summary-table td{padding:6px 4px;border-bottom:1px solid #f0f0f0}
+.summary-table tr:last-child{background:#fff8e1;font-weight:600}
+.summary-table .name-col{max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.summary-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #eee;display:flex;z-index:100;box-shadow:0 -2px 8px rgba(0,0,0,0.05)}
+.tab-bar button{flex:1;padding:12px;border:none;background:none;font-size:13px;cursor:pointer;color:#666;font-weight:500}
+.tab-bar button.active{color:#ff6b35;border-top:2px solid #ff6b35}
+.page{display:none}
+.page.active{display:block}
+.login-page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:linear-gradient(135deg,#ff6b35,#ff8f65)}
+.login-card{background:#fff;border-radius:16px;padding:32px 24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.15)}
+.login-card h1{text-align:center;margin-bottom:24px;color:#333;font-size:22px}
+.login-card input{width:100%;border:1px solid #ddd;border-radius:10px;padding:12px 16px;font-size:15px;margin-bottom:12px}
+.login-card button{width:100%;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px}
+.btn-login{background:#ff6b35;color:#fff}
+.btn-register{background:#f0f0f0;color:#333}
+.login-card .msg{text-align:center;font-size:13px;margin-top:8px;min-height:20px}
+.msg.error{color:#d32f2f}
+.msg.success{color:#2e7d32}
+.loading{display:none;text-align:center;padding:20px;color:#999}
+.loading.show{display:block}
+.pwa-banner{position:fixed;bottom:60px;left:12px;right:12px;background:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 4px 20px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:space-between;z-index:200}
+.pwa-banner button{background:#ff6b35;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer}
+.pwa-banner .close{background:none;color:#999;font-size:18px;padding:4px 8px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="loginPage" class="login-page">
+  <div class="login-card">
+    <h1>🦆 鸭货报货群</h1>
+    <input type="text" id="loginUser" placeholder="用户名" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="密码" autocomplete="current-password">
+    <input type="password" id="loginPass2" placeholder="确认密码（注册时填写）" style="display:none">
+    <button class="btn-login" onclick="doLogin()">登录</button>
+    <button class="btn-register" onclick="toggleRegister()">没有账号？去注册</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="mainApp" style="display:none">
+  <div class="header">
+    <h1>🦆 鸭货报货群</h1>
+    <div class="user-info" id="userInfo"></div>
+    <button class="logout-btn" onclick="doLogout()">退出</button>
+  </div>
+
+  <div id="page-order" class="page active">
+    <div class="container">
+      <div class="date-picker">
+        <label>📅 报货日期</label>
+        <input type="date" id="orderDate">
+      </div>
+      <div class="section section-meat">
+        <h2>🍖 荤菜类</h2>
+        <div class="item-grid" id="meatGrid"></div>
+      </div>
+      <div class="section section-veg">
+        <h2>🥬 素菜类</h2>
+        <div class="item-grid" id="vegGrid"></div>
+      </div>
+      <button class="submit-btn" onclick="submitOrder()">提交报货</button>
+    </div>
+  </div>
+
+  <div id="page-summary" class="page">
+    <div class="container">
+      <div class="date-picker">
+        <label>📊 查看日期</label>
+        <input type="date" id="summaryDate">
+      </div>
+      <div class="summary-section">
+        <h2>当日汇总</h2>
+        <div class="summary-wrap">
+          <table class="summary-table" id="summaryTable">
+            <thead><tr id="summaryHead"></tr></thead>
+            <tbody id="summaryBody"></tbody>
+          </table>
+        </div>
+        <div class="loading" id="summaryLoading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-my" class="page">
+    <div class="container">
+      <div class="summary-section">
+        <h2>📋 我的报货记录</h2>
+        <div class="summary-wrap">
+          <table class="summary-table" id="myTable">
+            <thead><tr id="myHead"></tr></thead>
+            <tbody id="myBody"></tbody>
+          </table>
+        </div>
+        <div class="loading" id="myLoading">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="active" onclick="switchTab('order',this)">📝 报货</button>
+    <button onclick="switchTab('summary',this)">📊 汇总</button>
+    <button onclick="switchTab('my',this)">👤 我的</button>
+  </div>
+
+  <div id="pwaBanner" class="pwa-banner hidden">
+    <span style="font-size:14px">添加到桌面快捷方式</span>
+    <div>
+      <button onclick="installPWA()">添加</button>
+      <button class="close" onclick="closePWA()">×</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://gxselvmconrsdmuidsbi.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4c2Vsdm1jb25yc2RtdWlkc2JpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MTk4NzIsImV4cCI6MjEwMzI5NTg3Mn0.JpdQb2uy4CN1XzHfwEyq6QM-zyuNwcWgURXVYP5Nd7c';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MEATS = ['鸭脖','鸭肠','鸭胗','鸭腿','鸭翅','鸭心','板肠','鸡爪','泡椒柠檬鸡爪','柠檬鸡爪','螺蛳','鸭架'];
+const VEGS = ['面筋','海带','金针菇','豆腐皮','土豆','花生毛豆','榛蘑','腐竹','藕','菜花','鱼豆腐'];
+const ALL_ITEMS = [...MEATS, ...VEGS];
+
+let currentUser = null;
+let isRegistering = false;
+let deferredPrompt = null;
+
+function init() {
+  const saved = localStorage.getItem('yahuo_user');
+  if (saved) { currentUser = saved; showApp(); }
+  renderItems();
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('orderDate').value = today;
+  document.getElementById('summaryDate').value = today;
+  document.getElementById('summaryDate').addEventListener('change', loadSummary);
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferredPrompt = e;
+    document.getElementById('pwaBanner').classList.remove('hidden');
+  });
+}
+
+function renderItems() {
+  const meatGrid = document.getElementById('meatGrid');
+  const vegGrid = document.getElementById('vegGrid');
+  MEATS.forEach(name => {
+    meatGrid.innerHTML += '<div class="item"><label>'+name+'</label><input type="number" inputmode="numeric" min="0" id="item_'+name+'" placeholder="0"></div>';
+  });
+  VEGS.forEach(name => {
+    vegGrid.innerHTML += '<div class="item"><label>'+name+'</label><input type="number" inputmode="numeric" min="0" id="item_'+name+'" placeholder="0"></div>';
+  });
+}
+
+function toggleRegister() {
+  isRegistering = !isRegistering;
+  document.getElementById('loginPass2').style.display = isRegistering ? 'block' : 'none';
+  document.querySelector('.btn-login').textContent = isRegistering ? '注册' : '登录';
+  document.querySelector('.btn-register').textContent = isRegistering ? '已有账号？去登录' : '没有账号？去注册';
+  document.getElementById('loginMsg').textContent = '';
+}
+
+async function doLogin() {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const msg = document.getElementById('loginMsg');
+  if (!user || !pass) { msg.className = 'msg error'; msg.textContent = '请输入用户名和密码'; return; }
+  
+  if (isRegistering) {
+    const pass2 = document.getElementById('loginPass2').value;
+    if (pass !== pass2) { msg.className = 'msg error'; msg.textContent = '两次密码不一致'; return; }
+    const { data: existing } = await sb.from('users').select('id').eq('id', user).single();
+    if (existing) { msg.className = 'msg error'; msg.textContent = '用户名已存在'; return; }
+    const { error } = await sb.from('users').insert({ id: user, password: btoa(pass) });
+    if (error) { msg.className = 'msg error'; msg.textContent = '注册失败: ' + error.message; return; }
+    msg.className = 'msg success'; msg.textContent = '注册成功！请登录';
+    return;
+  }
+  
+  const { data, error } = await sb.from('users').select('*').eq('id', user).single();
+  if (error || !data) { msg.className = 'msg error'; msg.textContent = '用户不存在'; return; }
+  if (data.password !== btoa(pass)) { msg.className = 'msg error'; msg.textContent = '密码错误'; return; }
+  currentUser = user;
+  localStorage.setItem('yahuo_user', user);
+  showApp();
+}
+
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  document.getElementById('userInfo').textContent = '当前用户: ' + currentUser;
+  loadSummary();
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('yahuo_user');
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+async function submitOrder() {
+  const date = document.getElementById('orderDate').value;
+  if (!date) { alert('请选择日期'); return; }
+  const items = {};
+  let hasValue = false;
+  ALL_ITEMS.forEach(name => {
+    const val = parseInt(document.getElementById('item_' + name).value) || 0;
+    items[name] = val;
+    if (val > 0) hasValue = true;
+  });
+  if (!hasValue) { alert('请至少填写一个商品数量'); return; }
+  const { error } = await sb.from('orders').upsert(
+    { username: currentUser, order_date: date, items: items },
+    { onConflict: 'username,order_date' }
+  );
+  if (error) { alert('提交失败: ' + error.message); return; }
+  alert('提交成功！');
+  ALL_ITEMS.forEach(name => { document.getElementById('item_' + name).value = ''; });
+  loadSummary();
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'summary') loadSummary();
+  if (tab === 'my') loadMyOrders();
+}
+
+async function loadSummary() {
+  const date = document.getElementById('summaryDate').value;
+  const loading = document.getElementById('summaryLoading');
+  const tbody = document.getElementById('summaryBody');
+  const thead = document.getElementById('summaryHead');
+  loading.classList.add('show');
+  tbody.innerHTML = '';
+  const { data, error } = await sb.from('orders').select('username, items').eq('order_date', date).order('created_at', { ascending: true });
+  loading.classList.remove('show');
+  if (error || !data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="99" style="text-align:center;padding:20px;color:#999">暂无数据</td></tr>';
+    thead.innerHTML = '<th>成员</th>';
+    return;
+  }
+  thead.innerHTML = '<th>成员</th>' + ALL_ITEMS.map(n => '<th>'+n+'</th>').join('');
+  let totals = {};
+  ALL_ITEMS.forEach(n => totals[n] = 0);
+  data.forEach(row => {
+    let tr = '<td class="name-col">'+row.username+'</td>';
+    ALL_ITEMS.forEach(name => {
+      const val = (row.items && row.items[name]) || 0;
+      tr += '<td>'+(val || '-')+'</td>';
+      totals[name] += val;
+    });
+    tbody.innerHTML += '<tr>'+tr+'</tr>';
+  });
+  let totalRow = '<td class="name-col"><b>合计</b></td>';
+  ALL_ITEMS.forEach(name => { totalRow += '<td><b>'+(totals[name] || '-')+'</b></td>'; });
+  tbody.innerHTML += '<tr>'+totalRow+'</tr>';
+}
+
+async function loadMyOrders() {
+  const loading = document.getElementById('myLoading');
+  const tbody = document.getElementById('myBody');
+  const thead = document.getElementById('myHead');
+  loading.classList.add('show');
+  tbody.innerHTML = '';
+  const { data, error } = await sb.from('orders').select('order_date, items').eq('username', currentUser).order('order_date', { ascending: false }).limit(30);
+  loading.classList.remove('show');
+  if (error || !data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="99" style="text-align:center;padding:20px;color:#999">暂无记录</td></tr>';
+    thead.innerHTML = '<th>日期</th>';
+    return;
+  }
+  thead.innerHTML = '<th>日期</th>' + ALL_ITEMS.map(n => '<th>'+n+'</th>').join('');
+  data.forEach(row => {
+    let tr = '<td>'+row.order_date+'</td>';
+    ALL_ITEMS.forEach(name => {
+      const val = (row.items && row.items[name]) || 0;
+      tr += '<td>'+(val || '-')+'</td>';
+    });
+    tbody.innerHTML += '<tr>'+tr+'</tr>';
+  });
+}
+
+function installPWA() {
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; }); }
+  document.getElementById('pwaBanner').classList.add('hidden');
+}
+function closePWA() { document.getElementById('pwaBanner').classList.add('hidden'); }
+
+init();
+</script>
+</body>
+</html>
