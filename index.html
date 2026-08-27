@@ -48,6 +48,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .type-bar{display:flex;background:#fff;border-bottom:1px solid #eee;position:sticky;top:52px;z-index:99}
 .type-bar button{flex:1;padding:10px;border:none;background:none;font-size:14px;cursor:pointer;color:#666;font-weight:500}
 .type-bar button.active{color:#ff6b35;border-bottom:2px solid #ff6b35;font-weight:600}
+.summary-mode-bar{display:flex;gap:8px;margin-bottom:12px}
+.summary-mode-bar button{flex:1;padding:10px;border:none;border-radius:8px;font-size:14px;cursor:pointer;background:#fff;color:#666;font-weight:500}
+.summary-mode-bar button.active{background:#ff6b35;color:#fff}
 .page{display:none}
 .page.active{display:block}
 .login-page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:linear-gradient(135deg,#ff6b35,#ff8f65)}
@@ -105,12 +108,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
   </div>
   <div id="page-summary" class="page">
     <div class="container">
+      <div class="summary-mode-bar">
+        <button class="active" onclick="switchSummaryMode('day',this)">按天汇总</button>
+        <button onclick="switchSummaryMode('month',this)">按月汇总</button>
+      </div>
       <div class="date-picker">
-        <label>📊 查看日期</label>
+        <label id="summaryDateLabel">📊 查看日期</label>
         <input type="date" id="summaryDate">
       </div>
       <div class="summary-section">
-        <h2>当日汇总</h2>
+        <h2 id="summaryTitle">当日汇总</h2>
         <div class="summary-wrap">
           <table class="summary-table" id="summaryTable">
             <thead><tr id="summaryHead"></tr></thead>
@@ -159,6 +166,7 @@ let currentUser = null;
 let isRegistering = false;
 let deferredPrompt = null;
 let currentType = '泡货';
+let summaryMode = 'day';
 function init() {
   const saved = localStorage.getItem('yahuo_user');
   if (saved) { currentUser = saved; showApp(); }
@@ -258,25 +266,47 @@ function switchTab(tab, btn) {
   if (tab === 'my') loadMyOrders();
 }
 async function loadSummary() {
-  const date = document.getElementById('summaryDate').value;
+  const dateVal = document.getElementById('summaryDate').value;
   const loading = document.getElementById('summaryLoading');
   const tbody = document.getElementById('summaryBody');
   const thead = document.getElementById('summaryHead');
+  const title = document.getElementById('summaryTitle');
   loading.classList.add('show');
   tbody.innerHTML = '';
-  const { data, error } = await sb.from('orders').select('username, items').eq('order_date', date).eq('type', currentType).order('created_at', { ascending: true });
+  let query = sb.from('orders').select('username, items').eq('type', currentType);
+  if (summaryMode === 'month') {
+    title.textContent = dateVal + ' 月度汇总';
+    const [y, m] = dateVal.split('-');
+    const monthStart = y + '-' + m + '-01';
+    const nextMonth = parseInt(m) === 12 ? (parseInt(y)+1) + '-01-01' : y + '-' + String(parseInt(m)+1).padStart(2,'0') + '-01';
+    query = query.gte('order_date', monthStart).lt('order_date', nextMonth);
+  } else {
+    title.textContent = '当日汇总';
+    query = query.eq('order_date', dateVal);
+  }
+  query = query.order('created_at', { ascending: true });
+  const { data, error } = await query;
   loading.classList.remove('show');
   if (error || !data || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="99" style="text-align:center;padding:20px;color:#999">暂无数据</td></tr>';
     thead.innerHTML = '<th>商品</th>';
     return;
   }
-  thead.innerHTML = '<th>商品</th>' + data.map(row => '<th>'+row.username+'</th>').join('') + '<th>合计</th>';
+  let userMap = {};
+  let userList = [];
+  data.forEach(row => {
+    if (!userMap[row.username]) { userMap[row.username] = {}; userList.push(row.username); }
+    ALL_ITEMS.forEach(name => {
+      const val = (row.items && row.items[name]) || 0;
+      userMap[row.username][name] = (userMap[row.username][name] || 0) + val;
+    });
+  });
+  thead.innerHTML = '<th>商品</th>' + userList.map(u => '<th>'+u+'</th>').join('') + '<th>合计</th>';
   ALL_ITEMS.forEach(name => {
     let tr = '<td class="name-col">'+name+'</td>';
     let total = 0;
-    data.forEach(row => {
-      const val = (row.items && row.items[name]) || 0;
+    userList.forEach(u => {
+      const val = userMap[u][name] || 0;
       tr += '<td>'+(val || '-')+'</td>';
       total += val;
     });
@@ -284,28 +314,67 @@ async function loadSummary() {
     tbody.innerHTML += '<tr>'+tr+'</tr>';
   });
 }
+function switchSummaryMode(mode, btn) {
+  summaryMode = mode;
+  document.querySelectorAll('.summary-mode-bar button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const input = document.getElementById('summaryDate');
+  const label = document.getElementById('summaryDateLabel');
+  if (mode === 'month') {
+    input.type = 'month';
+    label.textContent = '📊 查看月份';
+    input.value = new Date().toISOString().slice(0, 7);
+  } else {
+    input.type = 'date';
+    label.textContent = '📊 查看日期';
+    input.value = new Date().toISOString().slice(0, 10);
+  }
+  loadSummary();
+}
 async function loadMyOrders() {
   const loading = document.getElementById('myLoading');
   const tbody = document.getElementById('myBody');
   const thead = document.getElementById('myHead');
   loading.classList.add('show');
   tbody.innerHTML = '';
-  const { data, error } = await sb.from('orders').select('order_date, items').eq('username', currentUser).order('order_date', { ascending: false }).limit(365);
+  const { data, error } = await sb.from('orders').select('order_date, items, type').eq('username', currentUser).order('order_date', { ascending: false }).limit(365);
   loading.classList.remove('show');
   if (error || !data || data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="99" style="text-align:center;padding:20px;color:#999">暂无记录</td></tr>';
     thead.innerHTML = '<th>日期</th>';
     return;
   }
-  thead.innerHTML = '<th>日期</th><th>类型</th>' + ALL_ITEMS.map(n => '<th>'+n+'</th>').join('');
+  thead.innerHTML = '<th>日期</th><th>类型</th>' + ALL_ITEMS.map(n => '<th>'+n+'</th>').join('') + '<th>操作</th>';
   data.forEach(row => {
     let tr = '<td>'+row.order_date+'</td><td>'+(row.type || '泡货')+'</td>';
     ALL_ITEMS.forEach(name => {
       const val = (row.items && row.items[name]) || 0;
       tr += '<td>'+(val || '-')+'</td>';
     });
+    tr += '<td><button onclick="editOrder(\''+row.order_date+'\',\''+(row.type || '泡货')+'\')" style="background:#ff6b35;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">编辑</button></td>';
     tbody.innerHTML += '<tr>'+tr+'</tr>';
   });
+}
+async function editOrder(date, type) {
+  currentType = type;
+  document.querySelectorAll('.type-bar button').forEach(b => {
+    b.classList.remove('active');
+    if (b.textContent.indexOf(type) > -1) b.classList.add('active');
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-order').classList.add('active');
+  document.querySelector('.tab-bar button').classList.add('active');
+  document.getElementById('orderDate').value = date;
+  const { data, error } = await sb.from('orders').select('items').eq('username', currentUser).eq('order_date', date).eq('type', type).single();
+  if (data && data.items) {
+    ALL_ITEMS.forEach(name => {
+      const input = document.getElementById('item_' + name);
+      if (input) input.value = data.items[name] || '';
+    });
+  }
+  window.scrollTo(0, 0);
+  alert('已加载该日报货数据，修改后点"提交报货"即可更新');
 }
 function installPWA() {
   if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; }); }
