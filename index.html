@@ -99,6 +99,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
         <label>📅 报货日期</label>
         <input type="date" id="orderDate">
       </div>
+      <button onclick="copyFromPaoHuo()" style="width:100%;background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:8px;padding:10px;font-size:14px;cursor:pointer;margin-bottom:12px">📋 参照当天泡货数量（可修改）</button>
       <div class="section section-meat">
         <h2>🍖 荤菜类</h2>
         <div class="item-grid" id="meatGrid"></div>
@@ -228,6 +229,19 @@ function doLogout() {
   localStorage.removeItem('yahuo_user');
   document.getElementById('loginPage').style.display = 'flex';
   document.getElementById('mainApp').style.display = 'none';
+}
+async function copyFromPaoHuo() {
+  const date = document.getElementById('orderDate').value;
+  if (!date) { alert('请先选择日期'); return; }
+  const { data, error } = await sb.from('orders').select('items').eq('username', currentUser).eq('order_date', date).eq('type', '泡货').single();
+  if (error || !data) { alert('当天没有泡货记录，请先填写泡货'); return; }
+  if (data.items) {
+    ALL_ITEMS.forEach(name => {
+      const input = document.getElementById('item_' + name);
+      if (input) input.value = data.items[name] || '';
+    });
+    alert('已复制当天泡货数量，请修改有出入的部分后提交');
+  }
 }
 async function submitOrder() {
   const date = document.getElementById('orderDate').value;
